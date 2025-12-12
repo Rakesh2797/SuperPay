@@ -22,6 +22,7 @@ class ProductListViewModel: ObservableObject {
     @Published var selectedCategory: String = "All"
 
     private let cartManager = CartManager.shared
+    private let productService = ProductService.shared
 
     var categories: [String] {
         let uniqueCategories = Set(products.map { $0.category })
@@ -51,18 +52,17 @@ class ProductListViewModel: ObservableObject {
     func loadProducts() {
         loadingState = .loading
 
-        // Simulate API call with delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self = self else { return }
-
-            // Simulate random success/failure (90% success rate)
-            let shouldSucceed = Int.random(in: 1...10) <= 9
-
-            if shouldSucceed {
-                self.products = Product.mockProducts
-                self.loadingState = .success
-            } else {
-                self.loadingState = .error("Failed to load products. Please try again.")
+        Task {
+            do {
+                let fetchedProducts = try await productService.fetchProducts()
+                await MainActor.run {
+                    self.products = fetchedProducts
+                    self.loadingState = .success
+                }
+            } catch {
+                await MainActor.run {
+                    self.loadingState = .error(error.localizedDescription)
+                }
             }
         }
     }
